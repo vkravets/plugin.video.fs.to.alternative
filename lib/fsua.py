@@ -2,12 +2,12 @@ import urllib
 
 
 class FsUa:
-    def __init__(self, settings=None, client=None):
-        self.settings = settings
+    def __init__(self, plugin=None, client=None):
+        self.plugin = plugin
         self.client = client
 
     def get_url_with_sort_by(self, url, section, start, view_mode):
-        sort_by = self.settings.getSetting("Sort by")
+        sort_by = self.plugin.get_setting("Sort by")
         sort_by_map = {'0': 'new', '1': 'rating', '2': 'year', '3': 'popularity', '4': 'trend'}
 
         separator = '?'
@@ -29,7 +29,7 @@ class FsUa:
             'audio': ['genre', 'aproduction']
         }
         for settingId in section_settings[section]:
-            setting = self.settings.getSetting(settingId)
+            setting = self.plugin.get_setting(settingId)
             if setting != 'Any':
                 filter_params.append(setting)
         if len(filter_params) > 0:

@@ -3,7 +3,7 @@ import urllib2
 import cookielib
 import os
 
-import xbmcvfs
+# import xbmcvfs
 
 headers = {
     'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:25.0) Gecko/20100101 Firefox/25.0',
@@ -23,8 +23,8 @@ class HttpClient:
             cookie_path = cookie_path.encode('utf8')
         self.cookie_path = cookie_path
 
-    def remove_cookie(self):
-        xbmcvfs.delete(self.cookie_path)
+    # def remove_cookie(self):
+    #     xbmcvfs.delete(self.cookie_path)
 
     def get_full_url(self, url):
         if url.startswith('//'):
@@ -44,8 +44,8 @@ class HttpClient:
             del headers['Content-Type']
 
         jar = cookielib.LWPCookieJar(self.cookie_path)
-        if xbmcvfs.exists(self.cookie_path):
-            jar.load()
+        # if xbmcvfs.exists(self.cookie_path):
+        #     jar.load()
 
         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(jar))
         urllib2.install_opener(opener)
@@ -55,7 +55,7 @@ class HttpClient:
         the_page = response.read()
         response.close()
 
-        jar.save()
+        # jar.save()
 
         return the_page
 
