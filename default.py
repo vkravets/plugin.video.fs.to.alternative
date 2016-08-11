@@ -30,22 +30,17 @@ socket.setdefaulttimeout(50)
 
 import os
 import re
-import sys
 import urllib
-# import hashlib
 
-# import simplejson as json
+import simplejson as json
+from kodiswift import Plugin, xbmc, xbmcvfs
 
-from kodiswift import Plugin, xbmc
-
-plugin = Plugin(addon_id='plugin.video.fs.ua.alternative')
+plugin = Plugin()
 
 from lib.fsua import FsUa
 from lib.httpclient import HttpClient
 
-# sys.path.append('/Users/sly/Library/Application Support/Kodi/addons/script.module.beautifulsoup/lib')
-
-# import SimpleDownloader as downloader
+import SimpleDownloader as downloader
 from BeautifulSoup import BeautifulSoup
 from lib import strutils, kodi
 
@@ -54,20 +49,19 @@ from lib import strutils, kodi
 
 __addondir__ = xbmc.translatePath(plugin.addon.getAddonInfo('profile'))
 icon = xbmc.translatePath(os.path.join(plugin.addon.getAddonInfo('path'), 'icon.png'))
-# cache_path = xbmc.translatePath(os.path.join(__addondir__, 'cache'))
+cache_path = xbmc.translatePath(os.path.join(plugin.addon.getAddonInfo('profile'), 'cache'))
 
-# if not xbmcvfs.exists(__addondir__):
-#     xbmcvfs.mkdir(__addondir__)
-#
-# if not xbmcvfs.exists(cache_path):
-#     xbmcvfs.mkdir(cache_path)
+if not xbmcvfs.exists(__addondir__):
+    xbmcvfs.mkdir(__addondir__)
+
+if not xbmcvfs.exists(cache_path):
+    xbmcvfs.mkdir(cache_path)
 
 __language__ = plugin.addon.getLocalizedString
 
-# siteUrl = plugin.get_setting('Site URL')
-siteUrl = 'fs.to'
+siteUrl = plugin.get_setting('Site URL')
+# siteUrl = 'fs.to'
 httpSiteUrl = 'http://' + siteUrl
-
 
 client = HttpClient(http_site_url=httpSiteUrl, cookie_path=__addondir__)
 fs_ua = FsUa(plugin=plugin, client=client)
@@ -75,6 +69,13 @@ fs_ua = FsUa(plugin=plugin, client=client)
 
 def show_message(heading, message, times=3000):
     plugin.notify(message, heading, times, icon)
+
+
+def get_flat_params():
+    flat = plugin.request.args.copy()
+    for k in flat.iterkeys():
+        flat[k] = flat[k][0]
+    return flat
 
 
 def logout():
@@ -119,67 +120,52 @@ def check_login():
 def main():
     items = [
         {
-            'label': '[Видео]',
-            'path': plugin.url_for('get_categories', category='video', href=httpSiteUrl + '/video/', filter='', firstPage='yes')
+            'label': u'[Видео]',
+            'path': plugin.url_for('get_categories', category='video', href=httpSiteUrl + '/video/', filter='',
+                                   firstPage='yes')
         },
         {
-            'label': '[Аудио]',
-            'path': plugin.url_for('get_categories', category='audio', href='http://brb.to/audio/', ilter='', firstPage='yes')
+            'label': u'[Аудио]',
+            'path': plugin.url_for('get_categories', category='audio', href='http://brb.to/audio/', ilter='',
+                                   firstPage='yes')
         }
     ]
 
-    return items
+    if check_login():
+        items.extend([
+            {
+                'label': 'В процессе',
+                'path': plugin.url_for('get_fav_categories', type='inprocess')
+            },
+            {
+                'label': 'Избранное',
+                'path': plugin.url_for('get_fav_categories', type='favorites')
+            },
+            {
+                'label': 'Рекомендуемое',
+                'path': plugin.url_for('get_fav_categories', type='recommended')
+            },
+            {
+                'label': 'На будущее',
+                'path': plugin.url_for('get_fav_categories', type='forlater')
+            },
+            {
+                'label': 'Я рекомендую',
+                'path': plugin.url_for('get_fav_categories', type='irecommended')
+            },
+            {
+                'label': 'Завершенное',
+                'path': plugin.url_for('get_fav_categories', type='finished')
+            },
+        ])
 
-    # if check_login():
-    #     li = xbmcgui.ListItem('В процессе')
-    #     uri = strutils.construct_request({
-    #         'mode': 'get_fav_categories',
-    #         'type': 'inprocess'
-    #     })
-    #     xbmcplugin.addDirectoryItem(h, uri, li, True)
-    #
-    #     li = xbmcgui.ListItem('Избранное')
-    #     uri = strutils.construct_request({
-    #         'mode': 'get_fav_categories',
-    #         'type': 'favorites'
-    #     })
-    #     xbmcplugin.addDirectoryItem(h, uri, li, True)
-    #
-    #     li = xbmcgui.ListItem('Рекомендуемое')
-    #     uri = strutils.construct_request({
-    #         'mode': 'get_fav_categories',
-    #         'type': 'recommended'
-    #     })
-    #     xbmcplugin.addDirectoryItem(h, uri, li, True)
-    #
-    #     li = xbmcgui.ListItem('На будущее')
-    #     uri = strutils.construct_request({
-    #         'mode': 'get_fav_categories',
-    #         'type': 'forlater'
-    #     })
-    #     xbmcplugin.addDirectoryItem(h, uri, li, True)
-    #
-    #     li = xbmcgui.ListItem('Я рекомендую')
-    #     uri = strutils.construct_request({
-    #         'mode': 'get_fav_categories',
-    #         'type': 'irecommended'
-    #     })
-    #     xbmcplugin.addDirectoryItem(h, uri, li, True)
-    #
-    #     li = xbmcgui.ListItem('Завершенное')
-    #     uri = strutils.construct_request({
-    #         'mode': 'get_fav_categories',
-    #         'type': 'finished'
-    #     })
-    #     xbmcplugin.addDirectoryItem(h, uri, li, True)
-    #
-    # xbmcplugin.endOfDirectory(h, True)
+    return items
 
 
 @plugin.route('/categories/<category>/')
 def get_categories(category):
-    params = plugin.request.args
-    categoryUrl = urllib.unquote_plus(params['href'][0])
+    params = get_flat_params()
+    categoryUrl = urllib.unquote_plus(params['href'])
 
     http = client.GET(categoryUrl, httpSiteUrl)
     if http is None:
@@ -214,172 +200,159 @@ def get_categories(category):
                                    cleanUrl=client.get_full_url(subcategory['href']),
                                    start=0, filter='')
         })
-    # loadMainPageItems = plugin.get_setting('Load main page items')
-    # if loadMainPageItems == 'true':
-    #     items.append(
-    #         readcategory({
-    #             'href': params['href'][0],
-    #             'cleanUrl': params['href'][0],
-    #             'section': category,
-    #             'start': 0,
-    #             'filter': '',
-    #             'disableFilters': 'yes'
-    #         })
-    #     )
+    loadMainPageItems = plugin.get_setting('Load main page items')
+    if loadMainPageItems == 'true':
+        items.extend(
+            readcategory(category, {
+                'href': params['href'],
+                'cleanUrl': params['href'],
+                'section': category,
+                'start': 0,
+                'filter': '',
+                'disableFilters': 'yes'
+            })
+        )
 
-    return plugin.finish(items)
+    return items
 
 
-# def get_fav_categories(params):
-#     http = client.GET(httpSiteUrl + '/myfavourites.aspx?page=' + params['type'], httpSiteUrl)
-#     if http is None:
-#         return False
-#
-#     beautifulSoup = BeautifulSoup(http)
-#     favSectionsContainer = beautifulSoup.find('div', 'b-tabpanels')
-#     if favSectionsContainer is None:
-#         show_message('ОШИБКА', 'В избранном пусто', 3000)
-#         return False
-#
-#     favSections = favSectionsContainer.findAll('div', 'b-category')
-#     if len(favSections) == 0:
-#         show_message('ОШИБКА', 'В избранном пусто', 3000)
-#         return False
-#     sectionRegexp = re.compile("\s*\{\s*section:\s*'([^']+)")
-#     subsectionRegexp = re.compile("subsection:\s*'([^']+)")
-#     for favSection in favSections:
-#         rel = favSection.find('a', 'b-add')['rel'].encode('utf-8')
-#         section = sectionRegexp.findall(rel)[0]
-#         subsection = subsectionRegexp.findall(rel)[0]
-#         title = str(favSection.find('a', 'item').find('b').string)
-#         li = xbmcgui.ListItem(title)
-#
-#         uri = strutils.construct_request({
-#             'mode': 'read_favs',
-#             'section': section,
-#             'subsection': subsection,
-#             'type': params['type'],
-#             'page': 0
-#         })
-#         xbmcplugin.addDirectoryItem(h, uri, li, True)
-#     xbmcplugin.endOfDirectory(h, True)
-#
-#
-# def read_favs(params):
-#     href = httpSiteUrl + "/myfavourites.aspx?ajax&section=" + params['section'] \
-#            + "&subsection=" + params['subsection'] \
-#            + "&rows=1&curpage=" + params['page'] \
-#            + "&action=get_list&setrows=1&page=" + params['type']
-#
-#     favorites = read_fav_data(urllib.unquote_plus(href))
-#     if len(favorites) == 0:
-#         show_message('ОШИБКА', 'В избранном пусто', 3000)
-#         return False
-#
-#     for item in favorites:
-#         additional = ''
-#         if item['season'] > 0:
-#             additional = ' (s%se%s)' % (item['season'], item['episode'])
-#         li = xbmcgui.ListItem(
-#             strutils.html_entities_decode(item['title']) + additional,
-#             iconImage=fs_ua.thumbnail(item['cover']),
-#             thumbnailImage=fs_ua.poster(item['cover'])
-#         )
-#         li.setProperty('IsPlayable', 'false')
-#
-#         id = item['href'].split('/')[-1]
-#         li.addContextMenuItems([
-#             (
-#                 __language__(50003), "XBMC.RunPlugin(%s)" % strutils.construct_request({
-#                     'mode': 'addto',
-#                     'section': 'favorites',
-#                     'id': id,
-#                     'title': item['title']
-#                 })
-#             ),
-#             (
-#                 __language__(50004), "XBMC.RunPlugin(%s)" % strutils.construct_request({
-#                     'mode': 'addto',
-#                     'section': 'playlist',
-#                     'id': id,
-#                     'title': item['title']
-#                 })
-#             )
-#         ])
-#
-#         uri = strutils.construct_request({
-#             'href': item['href'],
-#             'referer': href,
-#             'mode': 'read_dir',
-#             'cover': item['cover'],
-#             'folder': 0,
-#             'isMusic': item['isMusic']
-#         })
-#         xbmcplugin.addDirectoryItem(h, uri, li, True)
-#
-#     li = xbmcgui.ListItem('[NEXT PAGE >]')
-#     li.setProperty('IsPlayable', 'false')
-#     params['page'] = int(params['page']) + 1
-#     uri = strutils.construct_request(params)
-#     xbmcplugin.addDirectoryItem(h, uri, li, True)
-#
-#     xbmcplugin.endOfDirectory(h)
-#
-#
-# def read_fav_data(favoritesUrl):
-#     favorites = []
-#     http = client.GET(favoritesUrl, httpSiteUrl)
-#     if http is None:
-#         return favorites
-#
-#     data = json.loads(str(http))
-#     http = data['content'].encode('utf-8')
-#
-#     beautifulSoup = BeautifulSoup(http)
-#     container = beautifulSoup.find('div', 'b-posters')
-#     if container is None:
-#         return favorites
-#
-#     items = container.findAll('div', 'b-poster-thin__wrapper ')
-#     if len(items) == 0:
-#         return favorites
-#
-#     cover_regexp = re.compile("url\s*\('([^']+)")
-#     episode_regexp = re.compile("s(\d+)e(\d+)")
-#
-#     for wrapper in items:
-#         item = wrapper.find('a', 'b-poster-thin')
-#
-#         season = 0
-#         episode = 0
-#
-#         episode_data = episode_regexp.findall(str(wrapper))
-#         if episode_data is not None and len(episode_data) > 0:
-#             season = episode_data[0][0]
-#             episode = episode_data[0][1]
-#
-#         cover = cover_regexp.findall(str(item['style']))[0]
-#         title = str(item.find('b', 'subject-link').find('span').string)
-#         href = client.get_full_url(item['href'])
-#
-#         isMusic = "no"
-#         if re.search('audio', href):
-#             isMusic = "yes"
-#
-#         #get_material_details(href)
-#
-#         favorites.append({
-#             'href': href,
-#             'title': strutils.html_entities_decode(title),
-#             'cover': cover,
-#             'season': season,
-#             'episode': episode,
-#             'isMusic': isMusic
-#         })
-#
-#     return favorites
-#
-#
+@plugin.route("/favourites")
+def get_fav_categories():
+    params = get_flat_params()
+    http = client.GET(httpSiteUrl + '/myfavourites.aspx?page=' + params['type'], httpSiteUrl)
+    if http is None:
+        return False
+
+    items = []
+
+    beautifulSoup = BeautifulSoup(http)
+    favSectionsContainer = beautifulSoup.find('div', 'b-tabpanels')
+    if favSectionsContainer is None:
+        show_message('ОШИБКА', 'В избранном пусто', 3000)
+        return False
+
+    favSections = favSectionsContainer.findAll('div', 'b-category')
+    if len(favSections) == 0:
+        show_message('ОШИБКА', 'В избранном пусто', 3000)
+        return False
+    sectionRegexp = re.compile("\s*\{\s*section:\s*'([^']+)")
+    subsectionRegexp = re.compile("subsection:\s*'([^']+)")
+    for favSection in favSections:
+        rel = favSection.find('a', 'b-add')['rel'].encode('utf-8')
+        section = sectionRegexp.findall(rel)[0]
+        subsection = subsectionRegexp.findall(rel)[0]
+        title = str(favSection.find('a', 'item').find('b').string)
+        items.append({
+            'label': title,
+            'is_playable': False,
+            'path': plugin.url_for('read_favs', section=section, subsection=subsection, type=params['type'], page=0)
+        })
+    return items
+
+
+@plugin.route('/favourites/<section>/<subsection>')
+def read_favs(section, subsection):
+    params = get_flat_params()
+    href = httpSiteUrl + "/myfavourites.aspx?ajax&section=" + section \
+           + "&subsection=" + subsection \
+           + "&rows=1&curpage=" + params['page'] \
+           + "&action=get_list&setrows=1&page=" + params['type']
+
+    favorites = read_fav_data(urllib.unquote_plus(href))
+    if len(favorites) == 0:
+        show_message('ОШИБКА', 'В избранном пусто', 3000)
+        return False
+
+    result_items = []
+    for item in favorites:
+        additional = ''
+        if item['season'] > 0:
+            additional = ' (s%se%s)' % (item['season'], item['episode'])
+
+        id = item['href'].split('/')[-1]
+        result_items.append({
+            'label': strutils.html_entities_decode(item['title']) + additional,
+            'icon': fs_ua.thumbnail(item['cover']),
+            'thumbnail': fs_ua.poster(item['cover']),
+            'is_playable': False,
+            'path': plugin.url_for('read_dir', href=item['href'], referer=href, cover=item['cover'], folder=0,
+                                   isMusic=item['isMusic']),
+            'context_menu': [
+                (
+                    __language__(50003),
+                    "XBMC.RunPlugin(%s)" % plugin.url_for('addto', category='favorites', id=id, title=item['title'])
+                ),
+                (
+                    __language__(50004),
+                    "XBMC.RunPlugin(%s)" % plugin.url_for('addto', category='playlist', id=id, title=item['title'])
+                )
+            ]
+
+        })
+
+    params['page'] = int(params['page']) + 1
+    result_items.append({
+        'label': '[NEXT PAGE >]',
+        'path': strutils.construct_request(params),
+        'is_playable': False
+    })
+    return result_items
+
+
+def read_fav_data(favoritesUrl):
+    favorites = []
+    http = client.GET(favoritesUrl, httpSiteUrl)
+    if http is None:
+        return favorites
+
+    data = json.loads(str(http))
+    http = data['content'].encode('utf-8')
+
+    beautifulSoup = BeautifulSoup(http)
+    container = beautifulSoup.find('div', 'b-posters')
+    if container is None:
+        return favorites
+
+    items = container.findAll('div', 'b-poster-thin__wrapper ')
+    if len(items) == 0:
+        return favorites
+
+    cover_regexp = re.compile("url\s*\('([^']+)")
+    episode_regexp = re.compile("s(\d+)e(\d+)")
+
+    for wrapper in items:
+        item = wrapper.find('a', 'b-poster-thin')
+
+        season = 0
+        episode = 0
+
+        episode_data = episode_regexp.findall(str(wrapper))
+        if episode_data is not None and len(episode_data) > 0:
+            season = episode_data[0][0]
+            episode = episode_data[0][1]
+
+        cover = cover_regexp.findall(str(item['style']))[0]
+        title = str(item.find('b', 'subject-link').find('span').string)
+        href = client.get_full_url(item['href'])
+
+        isMusic = "no"
+        if re.search('audio', href):
+            isMusic = "yes"
+
+        # get_material_details(href)
+
+        favorites.append({
+            'href': href,
+            'title': strutils.html_entities_decode(title),
+            'cover': cover,
+            'season': season,
+            'episode': episode,
+            'isMusic': isMusic
+        })
+
+    return favorites
+
+
 # def get_material_details(url):
 #     data = {}
 #     cache_file_name = '%s.json' % hashlib.md5(url).hexdigest()
@@ -446,16 +419,16 @@ def get_categories(category):
 
 @plugin.route('/categories/read/<category>')
 def readcategory(category, params=None):
-    params = params or plugin.request.args
-    start = int(params['start'][0])
-    category_href = urllib.unquote_plus(params['href'][0])
+    params = params or get_flat_params()
+    start = int(params['start'])
+    category_href = urllib.unquote_plus(params['href'])
 
     categoryUrl = category_href
     if 'disableFilters' not in params:
         categoryUrl = fs_ua.get_url_with_sort_by(
             category_href,
             category,
-            params['start'][0],
+            params['start'],
             'detailed'
         )
 
@@ -464,9 +437,10 @@ def readcategory(category, params=None):
         return False
 
     try:
-        filter = params['filter'][0]
+        filter = params['filter']
     except:
         filter = ''
+        params['filter'] = filter
 
     beautifulSoup = BeautifulSoup(http)
     itemsClass = 'b-poster-detail'
@@ -478,8 +452,8 @@ def readcategory(category, params=None):
         show_message('ОШИБКА', 'Неверная страница', 3000)
         return False
     else:
-        # if start == 0 and 'hideFirstPageData' not in params:
-        #     load_first_page_sections(category_href, params)
+        if start == 0 and 'hideFirstPageData' not in params:
+            result_items.extend(load_first_page_sections(category_href, category, params))
 
         for item in items:
             cover = None
@@ -501,28 +475,11 @@ def readcategory(category, params=None):
                     except:
                         pass
 
-                # id = str(link['href'].split('/')[-1])
-                # li.addContextMenuItems([
-                #     (
-                #     __language__(50001), "XBMC.RunPlugin(%s)" % strutils.construct_request({
-                #             'mode': 'addto',
-                #             'section': 'favorites',
-                #             'id': id
-                #         })
-                #     ),
-                #     (
-                #     __language__(50002), "XBMC.RunPlugin(%s)" % strutils.construct_request({
-                #             'mode': 'addto',
-                #             'section': 'playlist',
-                #             'id': id
-                #         })
-                #     )
-                # ])
-
                 isMusic = 'no'
                 if category == 'audio':
                     isMusic = 'yes'
 
+                id = str(link['href'].split('/')[-1])
                 titleText = strutils.html_entities_decode(title.encode('utf8'))
                 item = {
                     'label': titleText,
@@ -532,6 +489,16 @@ def readcategory(category, params=None):
                     'thumbnail': fs_ua.poster(cover),
                     'is_playable': False,
 
+                    'context_menu': [
+                        (
+                            __language__(50001),
+                            "XBMC.RunPlugin(%s)" % plugin.url_for('addto', category='favorites', id=id)
+                        ),
+                        (
+                            __language__(50002),
+                            "XBMC.RunPlugin(%s)" % plugin.url_for('addto', category='playlist', id=id)
+                        )
+                    ]
                 }
                 if plot != '':
                     item['info_type'] = category
@@ -539,104 +506,86 @@ def readcategory(category, params=None):
 
                 result_items.append(item)
 
-    # li = xbmcgui.ListItem('[NEXT PAGE >]')
-    # li.setProperty('IsPlayable', 'false')
-    # uri = strutils.construct_request({
-    #     'href': category_href,
-    #     'mode': 'readcategory',
-    #     'section': params['section'],
-    #     'filter': filter,
-    #     'start': start + 1,
-    #     'firstPage': 'no'
-    # })
-    # xbmcplugin.addDirectoryItem(h, uri, li, True)
-
-    # xbmcplugin.endOfDirectory(h)
-    return plugin.finish(result_items)
+    result_items.append({
+        'label': '[NEXT PAGE >]',
+        'is_playable': False,
+        'path': plugin.url_for('readcategory', category=category, href=category_href, filter=filter, start=start + 1,
+                               firstPage='no')
+    })
+    return result_items
 
 
-# def load_first_page_sections(href, params):
-#     #Add search list item
-#     li = xbmcgui.ListItem("[ПОИСК]")
-#     li.setProperty('IsPlayable', 'false')
-#     uri = strutils.construct_request({
-#         'mode': 'runsearch',
-#         'section': params['section'],
-#         'url': urllib.unquote_plus(params['cleanUrl'])
-#     })
-#     xbmcplugin.addDirectoryItem(h, uri, li, True)
-#
-#     first_page_data = client.GET(href, httpSiteUrl)
-#     if first_page_data is None:
-#         return False
-#
-#     beautifulSoup = BeautifulSoup(first_page_data)
-#     if beautifulSoup is None:
-#         return False
-#
-#     groups = beautifulSoup.find('div', 'b-section-menu')
-#     if groups is not None:
-#         yearLink = groups.find('a', href=re.compile(r'year'))
-#         if yearLink is not None:
-#             li = xbmcgui.ListItem("[По годам]")
-#             li.setProperty('IsPlayable', 'false')
-#             uri = strutils.construct_request({
-#                 'mode': 'getGenreList',
-#                 'section': params['section'],
-#                 'filter': params['filter'],
-#                 'href': yearLink['href'],
-#                 'cleanUrl': urllib.unquote_plus(params['cleanUrl']),
-#                 'css': 'main'
-#             })
-#             xbmcplugin.addDirectoryItem(h, uri, li, True)
-#         genreLink = groups.find('a', href=re.compile(r'genre'))
-#         if genreLink is not None:
-#             li = xbmcgui.ListItem("[Жанры]")
-#             li.setProperty('IsPlayable', 'false')
-#             uri = strutils.construct_request({
-#                 'mode': 'getGenreList',
-#                 'section': params['section'],
-#                 'filter': params['filter'],
-#                 'href': genreLink['href'],
-#                 'cleanUrl': urllib.unquote_plus(params['cleanUrl']),
-#                 'css': 'b-list-subcategories'
-#             })
-#             xbmcplugin.addDirectoryItem(h, uri, li, True)
-#
-#
-# def getGenreList(params):
-#     http = client.GET(urllib.unquote_plus(params['href']), httpSiteUrl)
-#     if http is None:
-#         return False
-#
-#     beautifulSoup = BeautifulSoup(http)
-#     items = beautifulSoup.find('div', params['css']).findAll('a')
-#
-#     if len(items) == 0:
-#         show_message('ОШИБКА', 'Неверная страница', 3000)
-#         return False
-#     else:
-#         for item in items:
-#             li = xbmcgui.ListItem(item.string)
-#             li.setProperty('IsPlayable', 'false')
-#             uri = strutils.construct_request({
-#                 'href': client.get_full_url(item['href'].encode('utf-8')),
-#                 'mode': 'readcategory',
-#                 'section': params['section'],
-#                 'filter': '',
-#                 'cleanUrl': urllib.unquote_plus(params['cleanUrl']),
-#                 'start': 0,
-#                 'hideFirstPageData': 1
-#             })
-#             xbmcplugin.addDirectoryItem(h, uri, li, True)
-#         xbmcplugin.endOfDirectory(h)
+def load_first_page_sections(href, category, params):
+    # Add search list item
+    items = [{
+        'label': '[ПОИСК]',
+        'is_playable': False,
+        'path': plugin.url_for('runsearch', category=category, url=params['cleanUrl'])
+    }]
+    first_page_data = client.GET(href, httpSiteUrl)
+    if first_page_data is None:
+        return False
+
+    beautifulSoup = BeautifulSoup(first_page_data)
+    if beautifulSoup is None:
+        return False
+
+    groups = beautifulSoup.find('div', 'b-section-menu')
+    if groups is not None:
+        yearLink = groups.find('a', href=re.compile(r'year'))
+        if yearLink is not None:
+            items.append({
+                'label': '[По годам]',
+                'is_playable': False,
+                'path': plugin.url_for('getGenreList', category=category, filter=params['filter'],
+                                       href=yearLink['href'], cleanUrl=urllib.unquote_plus(params['cleanUrl']),
+                                       css='main')
+            })
+        genreLink = groups.find('a', href=re.compile(r'genre'))
+        if genreLink is not None:
+            items.append({
+                'label': '[Жанры]',
+                'is_playable': False,
+                'path': plugin.url_for('getGenreList', category=category, filter=params['filter'],
+                                       href=genreLink['href'], cleanUrl=urllib.unquote_plus(params['cleanUrl']),
+                                       css='b-list-subcategories')
+            })
+    return items
+
+
+@plugin.route('/genres/<category>')
+def getGenreList(category):
+    params = get_flat_params()
+    http = client.GET(urllib.unquote_plus(params['href']), httpSiteUrl)
+    if http is None:
+        return False
+
+    beautifulSoup = BeautifulSoup(http)
+    items = beautifulSoup.find('div', params['css']).findAll('a')
+
+    result_items = []
+    if len(items) == 0:
+        show_message('ОШИБКА', 'Неверная страница', 3000)
+        return False
+    else:
+        for item in items:
+            result_items.append({
+                'label': item.string,
+                'is_playable': False,
+                'path': plugin.url_for('readcategory', category=category,
+                                       href=client.get_full_url(item['href'].encode('utf-8')), filter='',
+                                       cleanUrl=urllib.unquote_plus(params['cleanUrl']),
+                                       start=0, hideFirstPageData=1)
+            })
+    return result_items
+
 
 @plugin.route('/directory')
 def read_dir():
-    params = plugin.request.args
-    folderUrl = urllib.unquote_plus(params['href'][0])
-    cover = urllib.unquote_plus(params['cover'][0])
-    folder = params['folder'][0]
+    params = get_flat_params()
+    folderUrl = urllib.unquote_plus(params['href'])
+    cover = urllib.unquote_plus(params['cover'])
+    folder = params['folder']
 
     getUrl = folderUrl + '?ajax&folder=' + folder
 
@@ -645,7 +594,7 @@ def read_dir():
         return False
 
     beautifulSoup = BeautifulSoup(http)
-    if params['folder'][0] == '0':
+    if params['folder'] == '0':
         has_blocked = beautifulSoup.find('div', attrs={'id': 'file-block-text'})
         if has_blocked is not None:
             show_message('Blocked content', 'Некоторые файлы заблокированы')
@@ -656,9 +605,11 @@ def read_dir():
         show_message('ОШИБКА', 'No filelist', 3000)
         return False
 
-    if 'quality' in params and params['quality'][0] is not None and params['quality'][0] != 'None' and params[
-        'quality'][0] != '':
-        items = mainItems.findAll('li', 'video-' + params['quality'][0])
+    if 'quality' in params \
+            and params['quality'] is not None \
+            and params['quality'] != 'None' \
+            and params['quality'] != '':
+        items = mainItems.findAll('li', 'video-' + params['quality'])
     else:
         items = mainItems.findAll('li')
 
@@ -693,17 +644,17 @@ def read_dir():
                             result_items.append(
                                 add_directory_item(linkItem, isFolder, playLink, playLinkClass, cover, folderUrl,
                                                    folder,
-                                                   params['isMusic'][0], quality, itemsCount))
+                                                   params['isMusic'], quality, itemsCount))
                     else:
                         result_items.append(
                             add_directory_item(linkItem, isFolder, playLink, playLinkClass, cover, folderUrl, folder,
-                                               params['isMusic'][0], None, itemsCount))
+                                               params['isMusic'], None, itemsCount))
                 else:
                     result_items.append(
                         add_directory_item(linkItem, isFolder, playLink, playLinkClass, cover, folderUrl, folder,
-                                           params['isMusic'][0], None, None))
+                                           params['isMusic'], None, None))
 
-    return plugin.finish(result_items)
+    return result_items
 
 
 def add_directory_item(linkItem, isFolder, playLink, playLinkClass, cover, folderUrl, folder, isMusic, quality=None,
@@ -801,20 +752,19 @@ def add_folder_file(item):
         'info': {'title': title}
     }
 
-    # playCount = kodi.get_play_count(strutils.html_entities_decode(title))
-    # if playCount:
-    #     li.setInfo(type=item_type, infoLabels={'title': title, 'playcount': 1})
-    #     li.addContextMenuItems([
-    #         (
-    #             __language__(40001), "XBMC.RunPlugin(%s)" % strutils.construct_request({
-    #                 'mode': 'download',
-    #                 'file_url': str(href.encode('utf-8')),
-    #                 'file_name': strutils.html_entities_decode(title)
-    #             })
-    #         )
-    #     ])
+    playCount = kodi.get_play_count(strutils.html_entities_decode(title))
+    if playCount:
+        result_item['info_type'] = item_type
+        result_item['info'] = {'title': title, 'playcount': 1}
+        result_item['context_menu'] = [
+            (
+                __language__(40001),
+                "XBMC.RunPlugin(%s)" % plugin.url_for('download', file_url=str(href.encode('utf-8')),
+                                                      file_name=strutils.html_entities_decode(title))
+            ),
+        ]
 
-    # if item_type == 'music' or (__settings__.getSetting('Autoplay next') == 'true'):
+    # if item_type == 'music' or (plugin.addon.getSetting('Autoplay next') == 'true'):
     #     uri = strutils.construct_request({
     #         'file': str(href.encode('utf-8')),
     #         'referer': referer,
@@ -827,110 +777,103 @@ def add_folder_file(item):
     return result_item
 
 
-# def download(params):
-#     fileUrl = client.get_full_url(urllib.unquote_plus(params['file_url']))
-#     fileName = fileUrl.split('/')[-1]
-#     download_params = {
-#         'url': fileUrl,
-#         'download_path': __settings__.getSetting('Download Path')
-#     }
-#     client = downloader.SimpleDownloader()
-#     client.download(fileName, download_params)
+@plugin.route('/download/<file_url>')
+def download(file_url):
+    fileUrl = client.get_full_url(urllib.unquote_plus(file_url))
+    fileName = fileUrl.split('/')[-1]
+    download_params = {
+        'url': fileUrl,
+        'download_path': plugin.addon.getSetting('Download Path')
+    }
+    download_client = downloader.SimpleDownloader()
+    download_client.download(fileName, download_params)
 
 
-# def runsearch(params):
-#     skbd = xbmc.Keyboard()
-#     skbd.setHeading('Что ищем?')
-#     skbd.doModal()
-#     if skbd.isConfirmed():
-#         SearchStr = skbd.getText()
-#         searchUrl = '%ssearch.aspx?search=%s' % (urllib.unquote_plus(params['url']), urllib.quote_plus(SearchStr))
-#         params = {
-#             'href': searchUrl,
-#             'section': params['section']
-#         }
-#         return render_search_results(params)
-#
-#
-# def render_search_results(params):
-#     searchUrl = urllib.unquote_plus(params['href'])
-#     http = client.GET(searchUrl, httpSiteUrl)
-#     if http is None:
-#         return False
-#
-#     beautifulSoup = BeautifulSoup(http)
-#     results = beautifulSoup.find('div', 'b-search-page__results')
-#
-#     if results is None:
-#         show_message('ОШИБКА', 'Ничего не найдено', 3000)
-#         return False
-#     else:
-#         items = results.findAll('a','b-search-page__results-item')
-#         if len(items) == 0:
-#             show_message('ОШИБКА', 'Ничего не найдено', 3000)
-#             return False
-#
-#         for item in items:
-#             title = str(item.find('span', 'b-search-page__results-item-title').text.encode('utf-8'))
-#             href = client.get_full_url(item['href'])
-#             cover = item.find('span', 'b-search-page__results-item-image').find('img')['src']
-#             section = item.find('span', 'b-search-page__results-item-subsection').text
-#
-#             if title is not None:
-#                 li = xbmcgui.ListItem('[%s] %s' % (strutils.html_entities_decode(section), strutils.html_entities_decode(title)), iconImage=fs_ua.thumbnail(cover),
-#                                       thumbnailImage=fs_ua.poster(cover))
-#                 li.setProperty('IsPlayable', 'false')
-#                 id = item['href'].split('/')[-1]
-#                 li.addContextMenuItems([
-#                     (
-#                     __language__(50001), "XBMC.RunPlugin(%s)" % strutils.construct_request({
-#                             'mode': 'addto',
-#                             'section': 'favorites',
-#                             'id': id
-#                         })
-#                     ),
-#                     (
-#                     __language__(50002), "XBMC.RunPlugin(%s)" % strutils.construct_request({
-#                             'mode': 'addto',
-#                             'section': 'playlist',
-#                             'id': id
-#                         })
-#                     )
-#                 ])
-#
-#                 isMusic = 'no'
-#                 if params['section'] == 'audio':
-#                     isMusic = 'yes'
-#
-#                 uri = strutils.construct_request({
-#                     'href': href,
-#                     'referer': searchUrl,
-#                     'mode': 'read_dir',
-#                     'cover': cover,
-#                     'folder': 0,
-#                     'isMusic': isMusic
-#                 })
-#
-#                 xbmcplugin.addDirectoryItem(h, uri, li, True)
-#
-#     xbmcplugin.endOfDirectory(h)
+@plugin.route('/search/<category>')
+def runsearch(category):
+    params = get_flat_params()
+    skbd = xbmc.Keyboard()
+    skbd.setHeading('Что ищем?')
+    skbd.doModal()
+    if skbd.isConfirmed():
+        SearchStr = skbd.getText()
+        searchUrl = '%ssearch.aspx?search=%s' % (urllib.unquote_plus(params['url']), urllib.quote_plus(SearchStr))
+        params = {
+            'href': searchUrl,
+            'section': category
+        }
+        return render_search_results(category, params)
 
 
-# def addto(params):
-#     idRegexp = re.compile("([^-]+)")
-#     itemId = idRegexp.findall(params['id'])[0]
-#     addToHref = httpSiteUrl + "/addto/" + params['section'] + '/' + itemId + "?json"
-#     client.GET(addToHref, httpSiteUrl)
-#     show_message('Result', "Toggled state in " + params['section'], 5000)
+def render_search_results(category, params):
+    searchUrl = urllib.unquote_plus(params['href'])
+    http = client.GET(searchUrl, httpSiteUrl)
+    if http is None:
+        return False
+
+    beautifulSoup = BeautifulSoup(http)
+    results = beautifulSoup.find('div', 'b-search-page__results')
+
+    result_items = []
+    if results is None:
+        show_message('ОШИБКА', 'Ничего не найдено', 3000)
+        return False
+    else:
+        items = results.findAll('a', 'b-search-page__results-item')
+        if len(items) == 0:
+            show_message('ОШИБКА', 'Ничего не найдено', 3000)
+            return False
+
+        for item in items:
+            title = str(item.find('span', 'b-search-page__results-item-title').text.encode('utf-8'))
+            href = client.get_full_url(item['href'])
+            cover = item.find('span', 'b-search-page__results-item-image').find('img')['src']
+            section = item.find('span', 'b-search-page__results-item-subsection').text
+
+            if title is not None:
+                isMusic = 'no'
+                if category == 'audio':
+                    isMusic = 'yes'
+
+                id = item['href'].split('/')[-1]
+                result_items.append({
+                    'label': '[%s] %s' % (strutils.html_entities_decode(section), strutils.html_entities_decode(title)),
+                    'icon': fs_ua.thumbnail(cover),
+                    'thumbnail': fs_ua.poster(cover),
+                    'is_playable': False,
+                    'path': plugin.url_for('read_dir', href=href, referer=searchUrl, cover=cover, folder=0,
+                                           isMusic=isMusic),
+
+                    'context_menu': [
+                        (
+                            __language__(50001),
+                            "XBMC.RunPlugin(%s)" % plugin.url_for('addto', category='favorites', id=id)
+                        ),
+                        (
+                            __language__(50002),
+                            "XBMC.RunPlugin(%s)" % plugin.url_for('addto', category='playlist', id=id)
+                        )
+                    ]
+
+                })
+    return result_items
+
+
+@plugin.route('/addto/<category>')
+def addto(category):
+    params = get_flat_params()
+    idRegexp = re.compile("([^-]+)")
+    itemId = idRegexp.findall(params['id'])[0]
+    addToHref = httpSiteUrl + "/addto/" + category + '/' + itemId + "?json"
+    client.GET(addToHref, httpSiteUrl)
+    show_message('Result', "Toggled state in " + category, 5000)
 
 @plugin.route('/play/<path>')
 def play(path):
-    plfile = path
-
-    plfile = urllib.urlopen(client.get_full_url(plfile))
+    plfile = urllib.urlopen(client.get_full_url(path))
     fileUrl = plfile.geturl()
-
-    return plugin.set_resolved_url(client.get_full_url(fileUrl))
+    plugin.log.debug('Playing url: %s' % fileUrl)
+    return plugin.set_resolved_url(fileUrl)
 
 
 # def get_params(paramstring):
