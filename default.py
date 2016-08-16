@@ -18,11 +18,11 @@
 #   the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
 #   http://www.gnu.org/licenses/gpl.html
 
-__author__ = "Dmitry Khrysev"
+__author__ = "Dmitry Khrysev, Vladimir Kravets"
 __license__ = "GPL"
-__maintainer__ = "Dmitry Khrysev"
-__email__ = "x86demon@gmail.com"
-__status__ = "Production"
+__maintainer__ = "Vladimir Kravets"
+__email__ = "x86demon@gmail.com, vova.kravets@gmail.com"
+__status__ = "Testing"
 
 import socket
 
@@ -32,13 +32,21 @@ import os
 import re
 import urllib
 
-import simplejson as json
 from kodiswift import Plugin, xbmc, xbmcvfs
 
 plugin = Plugin()
 
 from lib.fsua import FsUa
 from lib.httpclient import HttpClient
+
+# TODO: Moving download and loading of plugins to KodiSwift
+# TODO: XBMC mock improve
+import sys
+sys.path.append('/Users/sly/Library/Application Support/Kodi/addons/script.module.simplejson/lib')
+sys.path.append('/Users/sly/Library/Application Support/Kodi/addons/script.module.beautifulsoup/lib')
+sys.path.append('/Users/sly/Library/Application Support/Kodi/addons/script.module.simple.downloader/lib')
+
+import simplejson as json
 
 import SimpleDownloader as downloader
 from BeautifulSoup import BeautifulSoup
@@ -59,8 +67,8 @@ if not xbmcvfs.exists(cache_path):
 
 __language__ = plugin.addon.getLocalizedString
 
-siteUrl = plugin.get_setting('Site URL')
-# siteUrl = 'fs.to'
+# siteUrl = plugin.get_settingeasy('Site URL', str)
+siteUrl = 'fs.to'
 httpSiteUrl = 'http://' + siteUrl
 
 client = HttpClient(http_site_url=httpSiteUrl, cookie_path=__addondir__)
@@ -85,8 +93,8 @@ def logout():
 
 
 def check_login():
-    login = plugin.get_setting("Login")
-    password = plugin.get_setting("Password")
+    login = plugin.get_setting("Login", converter=str)
+    password = plugin.get_setting("Password", converter=str)
 
     if len(login) > 0:
         http = client.GET(httpSiteUrl, httpSiteUrl)
@@ -108,7 +116,7 @@ def check_login():
             loginSoup = BeautifulSoup(loginResponse)
             userPanel = loginSoup.find('a', 'm-header__user-link_favourites')
             if userPanel is None:
-                show_message('Login', 'Check login and password', 3000)
+                show_message(u'Login', u'Check login and password', 3000)
             else:
                 return True
         else:
@@ -134,27 +142,27 @@ def main():
     if check_login():
         items.extend([
             {
-                'label': 'В процессе',
+                'label': u'В процессе',
                 'path': plugin.url_for('get_fav_categories', type='inprocess')
             },
             {
-                'label': 'Избранное',
+                'label': u'Избранное',
                 'path': plugin.url_for('get_fav_categories', type='favorites')
             },
             {
-                'label': 'Рекомендуемое',
+                'label': u'Рекомендуемое',
                 'path': plugin.url_for('get_fav_categories', type='recommended')
             },
             {
-                'label': 'На будущее',
+                'label': u'На будущее',
                 'path': plugin.url_for('get_fav_categories', type='forlater')
             },
             {
-                'label': 'Я рекомендую',
+                'label': u'Я рекомендую',
                 'path': plugin.url_for('get_fav_categories', type='irecommended')
             },
             {
-                'label': 'Завершенное',
+                'label': u'Завершенное',
                 'path': plugin.url_for('get_fav_categories', type='finished')
             },
         ])
@@ -183,12 +191,12 @@ def get_categories(category):
 
     categorySubmenu = beautifulSoup.find('div', submenuSelector)
     if categorySubmenu is None:
-        show_message('ОШИБКА', 'Неверная страница', 3000)
+        show_message(u'ОШИБКА', u'Неверная страница', 3000)
         return False
 
     subcategories = categorySubmenu.findAll('a', submenuItemSelector)
     if len(subcategories) == 0:
-        show_message('ОШИБКА', 'Неверная страница', 3000)
+        show_message(u'ОШИБКА', u'Неверная страница', 3000)
         return False
 
     for subcategory in subcategories:
@@ -200,8 +208,8 @@ def get_categories(category):
                                    cleanUrl=client.get_full_url(subcategory['href']),
                                    start=0, filter='')
         })
-    loadMainPageItems = plugin.get_setting('Load main page items')
-    if loadMainPageItems == 'true':
+    loadMainPageItems = plugin.get_setting('Load main page items', converter=bool)
+    if loadMainPageItems:
         items.extend(
             readcategory(category, {
                 'href': params['href'],
@@ -221,20 +229,20 @@ def get_fav_categories():
     params = get_flat_params()
     http = client.GET(httpSiteUrl + '/myfavourites.aspx?page=' + params['type'], httpSiteUrl)
     if http is None:
-        return False
+        return []
 
     items = []
 
     beautifulSoup = BeautifulSoup(http)
     favSectionsContainer = beautifulSoup.find('div', 'b-tabpanels')
     if favSectionsContainer is None:
-        show_message('ОШИБКА', 'В избранном пусто', 3000)
-        return False
+        show_message(u'ОШИБКА', u'В избранном пусто', 3000)
+        return items
 
     favSections = favSectionsContainer.findAll('div', 'b-category')
     if len(favSections) == 0:
-        show_message('ОШИБКА', 'В избранном пусто', 3000)
-        return False
+        show_message(u'ОШИБКА', u'В избранном пусто', 3000)
+        return items
     sectionRegexp = re.compile("\s*\{\s*section:\s*'([^']+)")
     subsectionRegexp = re.compile("subsection:\s*'([^']+)")
     for favSection in favSections:
@@ -260,8 +268,8 @@ def read_favs(section, subsection):
 
     favorites = read_fav_data(urllib.unquote_plus(href))
     if len(favorites) == 0:
-        show_message('ОШИБКА', 'В избранном пусто', 3000)
-        return False
+        show_message(u'ОШИБКА', u'В избранном пусто', 3000)
+        return items
 
     result_items = []
     for item in favorites:
@@ -292,7 +300,7 @@ def read_favs(section, subsection):
 
     params['page'] = int(params['page']) + 1
     result_items.append({
-        'label': '[NEXT PAGE >]',
+        'label': u'[NEXT PAGE >]',
         'path': strutils.construct_request(params),
         'is_playable': False
     })
@@ -434,7 +442,7 @@ def readcategory(category, params=None):
 
     http = client.GET(categoryUrl, httpSiteUrl)
     if http is None:
-        return False
+        return []
 
     try:
         filter = params['filter']
@@ -449,8 +457,8 @@ def readcategory(category, params=None):
     result_items = []
 
     if len(items) == 0:
-        show_message('ОШИБКА', 'Неверная страница', 3000)
-        return False
+        show_message(u'ОШИБКА', u'Неверная страница', 3000)
+        return result_items
     else:
         if start == 0 and 'hideFirstPageData' not in params:
             result_items.extend(load_first_page_sections(category_href, category, params))
@@ -507,7 +515,7 @@ def readcategory(category, params=None):
                 result_items.append(item)
 
     result_items.append({
-        'label': '[NEXT PAGE >]',
+        'label': u'[NEXT PAGE >]',
         'is_playable': False,
         'path': plugin.url_for('readcategory', category=category, href=category_href, filter=filter, start=start + 1,
                                firstPage='no')
@@ -518,24 +526,24 @@ def readcategory(category, params=None):
 def load_first_page_sections(href, category, params):
     # Add search list item
     items = [{
-        'label': '[ПОИСК]',
+        'label': u'[ПОИСК]',
         'is_playable': False,
         'path': plugin.url_for('runsearch', category=category, url=params['cleanUrl'])
     }]
     first_page_data = client.GET(href, httpSiteUrl)
     if first_page_data is None:
-        return False
+        return items
 
     beautifulSoup = BeautifulSoup(first_page_data)
     if beautifulSoup is None:
-        return False
+        return items
 
     groups = beautifulSoup.find('div', 'b-section-menu')
     if groups is not None:
         yearLink = groups.find('a', href=re.compile(r'year'))
         if yearLink is not None:
             items.append({
-                'label': '[По годам]',
+                'label': u'[По годам]',
                 'is_playable': False,
                 'path': plugin.url_for('getGenreList', category=category, filter=params['filter'],
                                        href=yearLink['href'], cleanUrl=urllib.unquote_plus(params['cleanUrl']),
@@ -544,7 +552,7 @@ def load_first_page_sections(href, category, params):
         genreLink = groups.find('a', href=re.compile(r'genre'))
         if genreLink is not None:
             items.append({
-                'label': '[Жанры]',
+                'label': u'[Жанры]',
                 'is_playable': False,
                 'path': plugin.url_for('getGenreList', category=category, filter=params['filter'],
                                        href=genreLink['href'], cleanUrl=urllib.unquote_plus(params['cleanUrl']),
@@ -558,15 +566,15 @@ def getGenreList(category):
     params = get_flat_params()
     http = client.GET(urllib.unquote_plus(params['href']), httpSiteUrl)
     if http is None:
-        return False
+        return []
 
     beautifulSoup = BeautifulSoup(http)
     items = beautifulSoup.find('div', params['css']).findAll('a')
 
     result_items = []
     if len(items) == 0:
-        show_message('ОШИБКА', 'Неверная страница', 3000)
-        return False
+        show_message(u'ОШИБКА', u'Неверная страница', 3000)
+        return result_items
     else:
         for item in items:
             result_items.append({
@@ -591,19 +599,19 @@ def read_dir():
 
     http = client.GET(getUrl, httpSiteUrl)
     if http is None:
-        return False
+        return []
 
     beautifulSoup = BeautifulSoup(http)
     if params['folder'] == '0':
         has_blocked = beautifulSoup.find('div', attrs={'id': 'file-block-text'})
         if has_blocked is not None:
-            show_message('Blocked content', 'Некоторые файлы заблокированы')
+            show_message(u'Blocked content', u'Некоторые файлы заблокированы')
 
     mainItems = beautifulSoup.find('ul', 'filelist')
 
     if mainItems is None:
-        show_message('ОШИБКА', 'No filelist', 3000)
-        return False
+        show_message(u'ОШИБКА', u'No filelist', 3000)
+        return []
 
     if 'quality' in params \
             and params['quality'] is not None \
@@ -616,8 +624,8 @@ def read_dir():
     materialQualityRegexp = re.compile('quality_list:\s*[\'|"]([a-zA-Z0-9,]+)[\'|"]')
     result_items = []
     if len(items) == 0:
-        show_message('ОШИБКА', 'Неверная страница', 3000)
-        return False
+        show_message(u'ОШИБКА', u'Неверная страница', 3000)
+        return result_items
     else:
         for item in items:
             isFolder = 'folder' in item['class']
@@ -787,6 +795,7 @@ def download(file_url):
     }
     download_client = downloader.SimpleDownloader()
     download_client.download(fileName, download_params)
+    # pass
 
 
 @plugin.route('/search/<category>')
@@ -809,20 +818,20 @@ def render_search_results(category, params):
     searchUrl = urllib.unquote_plus(params['href'])
     http = client.GET(searchUrl, httpSiteUrl)
     if http is None:
-        return False
+        return []
 
     beautifulSoup = BeautifulSoup(http)
     results = beautifulSoup.find('div', 'b-search-page__results')
 
     result_items = []
     if results is None:
-        show_message('ОШИБКА', 'Ничего не найдено', 3000)
-        return False
+        show_message(u'ОШИБКА', u'Ничего не найдено', 3000)
+        return result_items
     else:
         items = results.findAll('a', 'b-search-page__results-item')
         if len(items) == 0:
-            show_message('ОШИБКА', 'Ничего не найдено', 3000)
-            return False
+            show_message(u'ОШИБКА', u'Ничего не найдено', 3000)
+            return result_items
 
         for item in items:
             title = str(item.find('span', 'b-search-page__results-item-title').text.encode('utf-8'))
@@ -837,7 +846,7 @@ def render_search_results(category, params):
 
                 id = item['href'].split('/')[-1]
                 result_items.append({
-                    'label': '[%s] %s' % (strutils.html_entities_decode(section), strutils.html_entities_decode(title)),
+                    'label': u'[%s] %s' % (strutils.html_entities_decode(section), strutils.html_entities_decode(title)),
                     'icon': fs_ua.thumbnail(cover),
                     'thumbnail': fs_ua.poster(cover),
                     'is_playable': False,
@@ -866,7 +875,7 @@ def addto(category):
     itemId = idRegexp.findall(params['id'])[0]
     addToHref = httpSiteUrl + "/addto/" + category + '/' + itemId + "?json"
     client.GET(addToHref, httpSiteUrl)
-    show_message('Result', "Toggled state in " + category, 5000)
+    show_message(u'Result', u'Toggled state in %s' % category, 5000)
 
 @plugin.route('/play/<path>')
 def play(path):
